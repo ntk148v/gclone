@@ -17,6 +17,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/user"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -25,7 +26,10 @@ import (
 	"gopkg.in/alecthomas/kingpin.v2"
 )
 
-var repoSyntax = regexp.MustCompile(`/(?:git|ssh|https?|git@[-\w.]+):(\/\/)?(.*?)(\.git)(\/?|\#[-\d\w._]+?)$/`)
+var (
+	repoSyntax = regexp.MustCompile(`^(?:git|ssh|https?|git@[-\w.]+):(\/\/)?(.*?)(\.git)(\/?|\#[-\d\w._]+?)$`)
+	workspace  = os.Getenv("WORKSPACE")
+)
 
 func main() {
 	if os.Getenv("DEBUG") != "" {
@@ -57,11 +61,23 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(2)
 	}
+
+	if workspace == "" {
+		curUsr, err := user.Current()
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(2)
+		}
+		workspace = filepath.Join(curUsr.HomeDir, "Workspace")
+	}
+	if _, err := os.Stat(workspace); os.IsNotExist(err) {
+		os.MkdirAll(workspace, os.ModePerm)
+	}
 }
 
 func verifyRepo(repo string) error {
-	match := repoSyntax.FindAllStringSubmatch(repo, -1)
-	if len(match) == 0 {
+	matched := repoSyntax.MatchString(repo)
+	if !matched {
 		return errors.New("An invalid git repository url")
 	}
 	return nil
