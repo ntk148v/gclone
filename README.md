@@ -1,2 +1,3 @@
 # gclone
-Git clone written by pure Golang
+
+A Git clone tool written by pure Golang
