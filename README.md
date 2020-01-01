@@ -1,3 +1,3 @@
 # gclone
 
-A Git clone tool written by pure Golang
+A lazy tool written by Golang to clone git repository then place it to the right folder.
