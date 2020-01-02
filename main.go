@@ -111,13 +111,15 @@ func main() {
 	// Repository folder: $WORKSPACE/<resource>/<owner>/<name>
 	// For example: $WORKSPACE/github.com/ntk148v/gclone
 	dir := filepath.Join(WORKSPACE, repo.Resource, repo.Path)
+	// Remove the directory if existed
+	if force {
+		os.RemoveAll(dir)
+	}
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
 		os.MkdirAll(dir, 0755)
 		uid, _ := strconv.Atoi(curUsr.Uid)
 		gid, _ := strconv.Atoi(curUsr.Gid)
 		os.Chown(dir, uid, gid)
-	} else if force {
-		os.Remove(dir)
 	}
 
 	cmd := exec.Command("git", "clone", rawRepo, dir)
@@ -127,7 +129,7 @@ func main() {
 	err = cmd.Run()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, errors.Wrapf(err, fmt.Sprintf("Error cloning %s to directory %s", rawRepo, dir)))
-		os.Remove(dir)
+		os.RemoveAll(dir)
 		os.Exit(2)
 	}
 

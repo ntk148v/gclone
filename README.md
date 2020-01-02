@@ -27,7 +27,8 @@ usage: gclone [<flags>] <repository>
 A lazy tool written by Golang to clone git repository then place it to the right folder.
 
 Flags:
-  -h, --help  Show context-sensitive help (also try --help-long and --help-man).
+  -h, --help   Show context-sensitive help (also try --help-long and --help-man).
+  -f, --force  Force clone, remove an existing source code.
 
 Args:
   <repository>  Repository URL, for example: git@github.com:x/y.git, https://github.com/x/y.git...
