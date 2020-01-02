@@ -39,7 +39,7 @@ func main() {
 
 	a := kingpin.New(filepath.Base(os.Args[0]), "A lazy tool written by Golang to clone git repository then place it to the right folder.")
 	a.HelpFlag.Short('h')
-	repo := a.Arg("repo", "Repository URL, for example: https://github.com/x/y, https://github.com/x/y.git").Required().String()
+	repo := a.Arg("repo", "Repository URL, for example: git@github.com:x/y.git, https://github.com/x/y.git...").Required().String()
 	_, err := a.Parse(os.Args[1:])
 	if err != nil {
 		fmt.Fprintln(os.Stderr, errors.Wrapf(err, "Error parsing commandline arguments"))
@@ -47,21 +47,13 @@ func main() {
 		os.Exit(2)
 	}
 
-	// Disable any prompting for passwords by Git.
-	// Only has an effect for 2.3.0 or later, but avoiding
-	// the prompt in earlier versions is just too hard.
-	// If user has explicitly set GIT_TERMINAL_PROMPT=1, keep
-	// prompting.
-	// See golang.org/issue/9341 and golang.org/issue/12706.
-	if os.Getenv("GIT_TERMINAL_PROMPT") == "" {
-		os.Setenv("GIT_TERMINAL_PROMPT", "0")
-	}
-
+	// Verify URL
 	if err := verifyRepo(*repo); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(2)
 	}
 
+	// Setup directory
 	if workspace == "" {
 		curUsr, err := user.Current()
 		if err != nil {
