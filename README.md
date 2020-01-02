@@ -24,10 +24,6 @@ The directory tree will be like the follow, it is easier to manage.
 │   │   └── warehouse
 │   └── resloved
 │       └── i3
-├── gitlab.com
-│   └── viettelnet
-│       ├── cloud-portal
-│       └── cloud-portal-frontend
 ```
 
 ## Install
