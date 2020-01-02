@@ -23,6 +23,7 @@ import (
 	"regexp"
 	"runtime"
 	"strconv"
+	"strings"
 
 	"github.com/pkg/errors"
 	"gopkg.in/alecthomas/kingpin.v2"
@@ -75,7 +76,13 @@ func main() {
 
 	a := kingpin.New(filepath.Base(os.Args[0]), "A lazy tool written by Golang to clone git repository then place it to the right folder.")
 	a.HelpFlag.Short('h')
-	rawRepoPtn := a.Arg("repository", "Repository URL, for example: git@github.com:x/y.git, https://github.com/x/y.git...").Required().String()
+
+	var (
+		rawRepo string
+		force   bool
+	)
+	a.Flag("force", "Force clone, remove an existing source code.").Short('f').BoolVar(&force)
+	a.Arg("repository", "Repository URL, for example: git@github.com:x/y.git, https://github.com/x/y.git...").Required().StringVar(&rawRepo)
 	_, err := a.Parse(os.Args[1:])
 	if err != nil {
 		fmt.Fprintln(os.Stderr, errors.Wrapf(err, "Error parsing commandline arguments"))
@@ -83,7 +90,6 @@ func main() {
 		os.Exit(2)
 	}
 
-	rawRepo := *rawRepoPtn
 	// Verify URL
 	repo, err := parseRepo(rawRepo)
 	if err != nil {
@@ -110,6 +116,8 @@ func main() {
 		uid, _ := strconv.Atoi(curUsr.Uid)
 		gid, _ := strconv.Atoi(curUsr.Gid)
 		os.Chown(dir, uid, gid)
+	} else if force {
+		os.Remove(dir)
 	}
 
 	cmd := exec.Command("git", "clone", rawRepo, dir)
@@ -139,7 +147,7 @@ func parseRepo(rawRepo string) (*Repo, error) {
 					User:     m[2],
 					Resource: m[3],
 					Port:     m[4],
-					Path:     m[5],
+					Path:     strings.TrimSuffix(m[5], ".git"),
 					Owner:    m[6],
 					Name:     m[7],
 				}, nil
@@ -148,7 +156,7 @@ func parseRepo(rawRepo string) (*Repo, error) {
 					Protocol: m[1],
 					User:     m[2],
 					Resource: m[3],
-					Path:     m[4],
+					Path:     strings.TrimSuffix(m[4], ".git"),
 					Owner:    m[5],
 					Name:     m[6],
 				}, nil
@@ -157,7 +165,7 @@ func parseRepo(rawRepo string) (*Repo, error) {
 					User:     m[1],
 					Resource: m[2],
 					Port:     m[3],
-					Path:     m[4],
+					Path:     strings.TrimSuffix(m[4], ".git"),
 					Owner:    m[5],
 					Name:     m[6],
 				}, nil
@@ -166,7 +174,7 @@ func parseRepo(rawRepo string) (*Repo, error) {
 					User:     m[1],
 					Resource: m[2],
 					Path:     m[3],
-					Owner:    m[4],
+					Owner:    strings.TrimSuffix(m[4], ".git"),
 					Name:     m[5],
 				}, nil
 			}
