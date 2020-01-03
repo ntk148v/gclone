@@ -6,7 +6,7 @@ For example, the repository with url: https://github.com/ntk148v/gclone.git will
 
 The directory tree will be like the follow, it is easier to manage.
 
-```
+```bash
 ~/Workspace tree -L 3
 .
 ├── github.com
@@ -28,7 +28,7 @@ The directory tree will be like the follow, it is easier to manage.
 
 ## Install
 
-```
+```bash
 $ go get -d github.com/ntk148v/gclone
 $ cd $GOPATH/src/github.com/ntk148v/gclone
 $ GO111MODULE=on go build -o gclone main.go
@@ -40,12 +40,12 @@ Or simply get the binary file [here](./bin).
 
 Simply pass a repository URL as gclone command argument. If you want to change the default workspace folder, please export it:
 
-```
-→  export WORKSPACE=/path/to/your/workspace
+```bash
+$ export WORKSPACE=/path/to/your/workspace
 ```
 
-```
-→  ./bin/gclone -h
+```bash
+$ ./bin/gclone -h
 usage: gclone [<flags>] <repositories>
 
 A lazy tool written by Golang to clone multiple git repositories then place these to the right folders.
