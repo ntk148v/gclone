@@ -24,6 +24,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/pkg/errors"
 	"gopkg.in/alecthomas/kingpin.v2"
@@ -74,15 +75,17 @@ func main() {
 		runtime.SetMutexProfileFraction(20)
 	}
 
-	a := kingpin.New(filepath.Base(os.Args[0]), "A lazy tool written by Golang to clone git repository then place it to the right folder.")
+	a := kingpin.New(filepath.Base(os.Args[0]), "A lazy tool written by Golang to clone multiple git repositories then place these to the right folders.")
 	a.HelpFlag.Short('h')
 
 	var (
-		rawRepo string
-		force   bool
+		rawRepos string
+		force    bool
+		wg       sync.WaitGroup
 	)
 	a.Flag("force", "Force clone, remove an existing source code.").Short('f').BoolVar(&force)
-	a.Arg("repository", "Repository URL, for example: git@github.com:x/y.git, https://github.com/x/y.git...").Required().StringVar(&rawRepo)
+	a.Arg("repositories", "Repository URL(s), separated by a comma. "+
+		"For example: git@github.com:x/y.git,https://github.com/x/y.git...").Required().StringVar(&rawRepos)
 	_, err := a.Parse(os.Args[1:])
 	if err != nil {
 		fmt.Fprintln(os.Stderr, errors.Wrapf(err, "Error parsing commandline arguments"))
@@ -90,13 +93,8 @@ func main() {
 		os.Exit(2)
 	}
 
-	// Verify URL
-	repo, err := parseRepo(rawRepo)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, errors.Wrapf(err, "Error parsing the input repository URL"))
-		os.Exit(2)
-	}
-
+	// repos := strings.Fields(rawRepos)
+	repos := strings.Split(rawRepos, ",")
 	// Setup directory
 	curUsr, err := user.Current()
 	if err != nil {
@@ -107,34 +105,50 @@ func main() {
 		WORKSPACE = filepath.Join(curUsr.HomeDir, "Workspace")
 	}
 
-	// Create repository folder if not exist
-	// Repository folder: $WORKSPACE/<resource>/<owner>/<name>
-	// For example: $WORKSPACE/github.com/ntk148v/gclone
-	dir := filepath.Join(WORKSPACE, repo.Resource, repo.Path)
-	// Remove the directory if existed
-	if force {
-		os.RemoveAll(dir)
-	}
-	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		os.MkdirAll(dir, 0755)
-		uid, _ := strconv.Atoi(curUsr.Uid)
-		gid, _ := strconv.Atoi(curUsr.Gid)
-		os.Chown(dir, uid, gid)
+	for _, r := range repos {
+		wg.Add(1)
+		go func(rawRepo string) {
+			defer wg.Done()
+			// Verify URL
+			repo, err := parseRepo(rawRepo)
+			if err != nil {
+				fmt.Fprintln(os.Stderr, errors.Wrapf(err, "Error parsing the input repository URL"))
+				return
+			}
+
+			// Create repository folder if not exist
+			// Repository folder: $WORKSPACE/<resource>/<owner>/<name>
+			// For example: $WORKSPACE/github.com/ntk148v/gclone
+			dir := filepath.Join(WORKSPACE, repo.Resource, repo.Path)
+			// Remove the directory if existed
+			if force {
+				os.RemoveAll(dir)
+			}
+			if _, err := os.Stat(dir); os.IsNotExist(err) {
+				os.MkdirAll(dir, 0755)
+				uid, _ := strconv.Atoi(curUsr.Uid)
+				gid, _ := strconv.Atoi(curUsr.Gid)
+				os.Chown(dir, uid, gid)
+			}
+
+			cmd := exec.Command("git", "clone", rawRepo, dir)
+			cmd.Dir = dir
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+			err = cmd.Run()
+			if err != nil {
+				fmt.Fprintln(os.Stderr, errors.Wrapf(err, fmt.Sprintf("Error cloning %s to directory %s", rawRepo, dir)))
+				os.RemoveAll(dir)
+				return
+			}
+
+			fmt.Printf("Repository %s is cloned to %s\n", repo.Path, dir)
+			// TODO(kiennt): Find a way to cd into the directory :( os.Chdir doesn't work at all.
+		}(r)
 	}
 
-	cmd := exec.Command("git", "clone", rawRepo, dir)
-	cmd.Dir = dir
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	err = cmd.Run()
-	if err != nil {
-		fmt.Fprintln(os.Stderr, errors.Wrapf(err, fmt.Sprintf("Error cloning %s to directory %s", rawRepo, dir)))
-		os.RemoveAll(dir)
-		os.Exit(2)
-	}
-
-	fmt.Printf("Repository %s is cloned to %s\n", repo.Path, dir)
-	// TODO(kiennt): Find a way to cd into the directory :( os.Chdir doesn't work at all.
+	// Wait for all tasks finish
+	wg.Wait()
 }
 
 func parseRepo(rawRepo string) (*Repo, error) {
