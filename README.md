@@ -4,6 +4,28 @@ A lazy tool written by Golang to clone multiple git repositories then place it t
 
 For example, the repository with url: https://github.com/ntk148v/gclone.git will be placed in folder: `$WORKSPACE/github.com/ntk148v/gclone`. `WORKSPACE` is an environment variable to define your workspace folder path, by default it is `$HOME/Workspace`.
 
+The directory tree will be like the follow, it is easier to manage.
+
+```
+~/Workspace tree -L 3
+.
+├── github.com
+│   ├── jeremyb31
+│   │   └── newbtfix-4.15
+│   ├── neurobin
+│   │   └── MT7630E
+│   ├── ntk148v
+│   │   ├── blog
+│   │   ├── dotfiles
+│   │   ├── gclone
+│   │   ├── testing
+│   │   ├── til
+│   │   ├── wallpapers
+│   │   └── warehouse
+│   └── resloved
+│       └── i3
+```
+
 ## Install
 
 ```
