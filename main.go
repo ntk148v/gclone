@@ -79,13 +79,13 @@ func main() {
 	a.HelpFlag.Short('h')
 
 	var (
-		rawRepos string
+		rawRepos []string
 		force    bool
 		wg       sync.WaitGroup
 	)
 	a.Flag("force", "Force clone, remove an existing source code.").Short('f').BoolVar(&force)
-	a.Arg("repositories", "Repository URL(s), separated by a comma. "+
-		"For example: git@github.com:x/y.git,https://github.com/x/y.git...").Required().StringVar(&rawRepos)
+	a.Arg("repositories", "Repository URL(s), separate by blank space. "+
+		"For example: git@github.com:x/y.git https://github.com/x/y.git...").Required().StringsVar(&rawRepos)
 	_, err := a.Parse(os.Args[1:])
 	if err != nil {
 		fmt.Fprintln(os.Stderr, errors.Wrapf(err, "Error parsing commandline arguments"))
@@ -93,8 +93,6 @@ func main() {
 		os.Exit(2)
 	}
 
-	// repos := strings.Fields(rawRepos)
-	repos := strings.Split(rawRepos, ",")
 	// Setup directory
 	curUsr, err := user.Current()
 	if err != nil {
@@ -105,7 +103,7 @@ func main() {
 		WORKSPACE = filepath.Join(curUsr.HomeDir, "Workspace")
 	}
 
-	for _, r := range repos {
+	for _, r := range rawRepos {
 		wg.Add(1)
 		go func(rawRepo string) {
 			defer wg.Done()
