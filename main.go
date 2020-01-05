@@ -79,13 +79,20 @@ func main() {
 	a.HelpFlag.Short('h')
 
 	var (
-		rawRepos []string
-		force    bool
-		wg       sync.WaitGroup
+		rawRepos   []string
+		force      bool
+		rawClnOpts string
+		wg         sync.WaitGroup
 	)
-	a.Flag("force", "Force clone, remove an existing source code.").Short('f').BoolVar(&force)
-	a.Arg("repositories", "Repository URL(s), separate by blank space. "+
-		"For example: git@github.com:x/y.git https://github.com/x/y.git...").Required().StringsVar(&rawRepos)
+	a.Flag("force",
+		"Force clone, remove an existing source code.").
+		Short('f').BoolVar(&force)
+	a.Flag("clone-opts",
+		"Git clone command options, separate by blank space character. For more details `man git-clone`").
+		StringVar(&rawClnOpts)
+	a.Arg("repositories",
+		"Repository URL(s), separate by blank space. For example: git@github.com:x/y.git https://github.com/x/y.git...").
+		Required().StringsVar(&rawRepos)
 	_, err := a.Parse(os.Args[1:])
 	if err != nil {
 		fmt.Fprintln(os.Stderr, errors.Wrapf(err, "Error parsing commandline arguments"))
@@ -103,6 +110,7 @@ func main() {
 		WORKSPACE = filepath.Join(curUsr.HomeDir, "Workspace")
 	}
 
+	clnOpts := strings.Fields(rawClnOpts)
 	for _, r := range rawRepos {
 		wg.Add(1)
 		go func(rawRepo string) {
@@ -129,7 +137,11 @@ func main() {
 				os.Chown(dir, uid, gid)
 			}
 
-			cmd := exec.Command("git", "clone", rawRepo, dir)
+			// Create a temporay slice
+			tmpClnOpts := make([]string, len(clnOpts))
+			copy(tmpClnOpts, clnOpts)
+			tmpClnOpts = append([]string{"clone"}, tmpClnOpts...)
+			cmd := exec.Command("git", append(tmpClnOpts, "--", rawRepo, dir)...)
 			cmd.Dir = dir
 			cmd.Stdout = os.Stdout
 			cmd.Stderr = os.Stderr
