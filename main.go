@@ -15,7 +15,9 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"os/user"
@@ -140,15 +142,27 @@ func main() {
 			// Create a temporay slice
 			tmpClnOpts := make([]string, len(clnOpts))
 			copy(tmpClnOpts, clnOpts)
-			tmpClnOpts = append([]string{"clone"}, tmpClnOpts...)
+			// Like many Unix utilities, git-clone will be quieter if it's redirected to a pipe.
+			// --progress: Progress status is reported on the standard error stream by default when
+			// it is attached to a terminal, unless -q is specified. This flag forces progress status
+			// even if the standard error stream is not directed to a terminal.
+			// Write to multiple writer (os.Stderr and stderrBuf), stderrBuf for analyzing.
+			tmpClnOpts = append([]string{"clone", "--progress"}, tmpClnOpts...)
 			cmd := exec.Command("git", append(tmpClnOpts, "--", rawRepo, dir)...)
 			cmd.Dir = dir
-			cmd.Stdout = os.Stdout
-			cmd.Stderr = os.Stderr
+
+			var stdoutBuf, stderrBuf bytes.Buffer
+			stdout := io.MultiWriter(os.Stdout, &stdoutBuf)
+			stderr := io.MultiWriter(os.Stderr, &stderrBuf)
+			cmd.Stderr = stderr
+			cmd.Stdout = stdout
 			err = cmd.Run()
 			if err != nil {
+				errStr := string(stderrBuf.Bytes())
 				fmt.Fprintln(os.Stderr, errors.Wrapf(err, fmt.Sprintf("Error cloning %s to directory %s", rawRepo, dir)))
-				os.RemoveAll(dir)
+				if !strings.Contains(errStr, "already exists and is not an empty directory") {
+					os.RemoveAll(dir)
+				}
 				return
 			}
 
