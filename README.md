@@ -1,6 +1,9 @@
 # gclone
 
-> I make it for fun and also for my laziness.
+[![license](https://img.shields.io/badge/license-Apache%20v2.0-blue.svg)](LICENSE) [![Go Report Card](https://goreportcard.com/badge/github.com/ntk148v/gclone)](https://goreportcard.com/report/github.com/ntk148v/gclone)
+
+> I make it for fun and also for my laziness :trollface:.
+> To learn Golang as well.
 
 A lazy tool written by Golang to clone multiple git repositories then place it to the right folders
 
