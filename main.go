@@ -56,6 +56,11 @@ var (
 			`[\:\/]{1, 2}` +
 			`(?P<path>((?P<owner>\w+)/)?` +
 			`((?P<name>[\w\-]+)(\.git|\/)?)?)$`),
+		regexp.MustCompile(`^(?P<protocol>git@)` +
+			`(?P<resource>[a-z0-9_.-]*)` +
+			`[\:]` +
+			`(?P<path>((?P<owner>\w+)/)?` +
+			`((?P<name>[\w\-]+)(\.git|\/)?)?)$`),
 	}
 	WORKSPACE = os.Getenv("WORKSPACE")
 )
@@ -176,7 +181,8 @@ func main() {
 }
 
 func parseRepo(rawRepo string) (*Repo, error) {
-	for i := 0; i < 4; i++ {
+	rg := len(POSSIBLE_REGEXES)
+	for i := 0; i < rg; i++ {
 		match := POSSIBLE_REGEXES[i].FindAllStringSubmatch(rawRepo, -1)
 		if len(match) != 0 {
 			m := match[0]
@@ -216,6 +222,14 @@ func parseRepo(rawRepo string) (*Repo, error) {
 					Path:     m[3],
 					Owner:    strings.TrimSuffix(m[4], ".git"),
 					Name:     m[5],
+				}, nil
+			case 4:
+				return &Repo{
+					Protocol: m[1],
+					Resource: m[2],
+					Path:     strings.TrimSuffix(m[3], ".git"),
+					Owner:    m[5],
+					Name:     m[7],
 				}, nil
 			}
 		}
