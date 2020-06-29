@@ -61,6 +61,12 @@ var (
 			`[\:]` +
 			`(?P<path>((?P<owner>\w+)/)?` +
 			`((?P<name>[\w\-]+)(\.git|\/)?)?)$`),
+		regexp.MustCompile(`^(?P<protocol>https?|git|ssh|rsync)\://` +
+			`(?:(?P<user>.+)@)*` +
+			`(?P<resource>[a-z0-9_.-]*)` +
+			`[:/]*` +
+			`(?P<port>[\d]+){0,1}\/` +
+			`(?P<path>[^\.]+)(\.git|\/)?$`),
 	}
 	workspace = os.Getenv("WORKSPACE")
 )
@@ -230,6 +236,13 @@ func parseRepo(rawRepo string) (*Repo, error) {
 					Path:     strings.TrimSuffix(m[3], ".git"),
 					Owner:    m[5],
 					Name:     m[7],
+				}, nil
+			case 5:
+				return &Repo{
+					Protocol: m[1],
+					Resource: m[3],
+					Port:     m[4],
+					Path:     strings.TrimSuffix(m[5], ".git"),
 				}, nil
 			}
 		}
