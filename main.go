@@ -33,7 +33,7 @@ import (
 )
 
 var (
-	POSSIBLE_REGEXES = []*regexp.Regexp{
+	possibleRegexes = []*regexp.Regexp{
 		regexp.MustCompile(`^(?P<protocol>https?|git|ssh|rsync)\://` +
 			`(?:(?P<user>.+)@)*` +
 			`(?P<resource>[a-z0-9_.-]*)` +
@@ -62,7 +62,7 @@ var (
 			`(?P<path>((?P<owner>\w+)/)?` +
 			`((?P<name>[\w\-]+)(\.git|\/)?)?)$`),
 	}
-	WORKSPACE = os.Getenv("WORKSPACE")
+	workspace = os.Getenv("WORKSPACE")
 )
 
 // Repo represents a repository structure.
@@ -113,8 +113,8 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(2)
 	}
-	if WORKSPACE == "" {
-		WORKSPACE = filepath.Join(curUsr.HomeDir, "Workspace")
+	if workspace == "" {
+		workspace = filepath.Join(curUsr.HomeDir, "Workspace")
 	}
 
 	clnOpts := strings.Fields(rawClnOpts)
@@ -132,7 +132,7 @@ func main() {
 			// Create repository folder if not exist
 			// Repository folder: $WORKSPACE/<resource>/<owner>/<name>
 			// For example: $WORKSPACE/github.com/ntk148v/gclone
-			dir := filepath.Join(WORKSPACE, repo.Resource, repo.Path)
+			dir := filepath.Join(workspace, repo.Resource, repo.Path)
 			// Remove the directory if existed
 			if force {
 				os.RemoveAll(dir)
@@ -181,9 +181,9 @@ func main() {
 }
 
 func parseRepo(rawRepo string) (*Repo, error) {
-	rg := len(POSSIBLE_REGEXES)
+	rg := len(possibleRegexes)
 	for i := 0; i < rg; i++ {
-		match := POSSIBLE_REGEXES[i].FindAllStringSubmatch(rawRepo, -1)
+		match := possibleRegexes[i].FindAllStringSubmatch(rawRepo, -1)
 		if len(match) != 0 {
 			m := match[0]
 			switch i {
