@@ -110,7 +110,7 @@ func main() {
 
 	flag.Usage = func() {
 		w := flag.CommandLine.Output()
-		fmt.Fprintf(w, "A lazy tool written by Golang to clone multiple git repositories then place these to the right folders.\n\n")
+		fmt.Fprintf(w, "A lazy tool written by pure Golang to clone multiple git repositories then place these to the right folders.\n\n")
 		fmt.Fprintf(w, "Usage: %s [<flags>] <repositories>...\n\n", filepath.Base(os.Args[0]))
 		fmt.Fprintf(w, "Flags:\n")
 		flag.PrintDefaults()
@@ -121,7 +121,7 @@ func main() {
 
 	rawRepos = flag.Args()
 	if len(rawRepos) == 0 {
-		fmt.Fprintf(os.Stderr, "Error parsing commandline arguments: required argument 'repositories' not provided")
+		fmt.Fprintf(os.Stderr, "Error parsing commandline arguments: required argument 'repositories' not provided\n")
 		flag.Usage()
 		os.Exit(2)
 	}

@@ -5,7 +5,7 @@
 > I make it for fun and also for my laziness :trollface:.
 > To learn Golang as well.
 
-A lazy tool written by Golang to clone multiple git repositories then place it to the right folders
+A lazy tool written by pure Golang to clone multiple git repositories then place it to the right folders
 
 For example, the repository with url: https://github.com/ntk148v/gclone.git will be placed in folder: `$WORKSPACE/github.com/ntk148v/gclone`. `WORKSPACE` is an environment variable to define your workspace folder path, by default it is `$HOME/Workspace`.
 
@@ -53,15 +53,16 @@ $ export WORKSPACE=/path/to/your/workspace
 $ ./bin/gclone -h
 A lazy tool written by Golang to clone multiple git repositories then place these to the right folders.
 
-Flags:
-  -h, --help                   Show context-sensitive help (also try --help-long and --help-man).
-  -f, --force                  Force clone, remove an existing source code.
-      --clone-opts=CLONE-OPTS  Git clone command options, separate by blank space character. For more details `man
-                               git-clone`
+Usage: main [<flags>] <repositories>...
 
+Flags:
+  -clone-opts string
+    	Git clone command options, separate by blank space character. For more details "man git-clone"
+  -f	Force clone, remove an existing source code.
+  -force
+    	Force clone, remove an existing source code.
 Args:
-  <repositories>  Repository URL(s), separate by blank space. For example: git@github.com:x/y.git
-                  https://github.com/x/y.git...
+  <repositories>  Repository URL(s), separate by blank space. For example: git@github.com:x/y.git https://github.com/x/y.git...
 ```
 
 * Clone a single repostitory:
