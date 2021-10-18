@@ -28,7 +28,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/pkg/errors"
 	"gopkg.in/alecthomas/kingpin.v2"
 )
 
@@ -108,7 +107,7 @@ func main() {
 		Required().StringsVar(&rawRepos)
 	_, err := a.Parse(os.Args[1:])
 	if err != nil {
-		fmt.Fprintln(os.Stderr, errors.Wrapf(err, "Error parsing commandline arguments"))
+		fmt.Fprintf(os.Stderr, "Error parsing commandline arguments: %s", err.Error())
 		a.Usage(os.Args[1:])
 		os.Exit(2)
 	}
@@ -131,7 +130,7 @@ func main() {
 			// Verify URL
 			repo, err := parseRepo(rawRepo)
 			if err != nil {
-				fmt.Fprintln(os.Stderr, errors.Wrapf(err, "Error parsing the input repository URL"))
+				fmt.Fprintf(os.Stderr, "Error parsing the input repository URL: %s", err.Error())
 				return
 			}
 
@@ -169,8 +168,8 @@ func main() {
 			cmd.Stdout = stdout
 			err = cmd.Run()
 			if err != nil {
-				errStr := string(stderrBuf.Bytes())
-				fmt.Fprintln(os.Stderr, errors.Wrapf(err, fmt.Sprintf("Error cloning %s to directory %s", rawRepo, dir)))
+				errStr := stderrBuf.String()
+				fmt.Fprintf(os.Stderr, "Error cloning %s to directory %s: %s", rawRepo, dir, errStr)
 				if !strings.Contains(errStr, "already exists and is not an empty directory") {
 					os.RemoveAll(dir)
 				}
@@ -247,5 +246,5 @@ func parseRepo(rawRepo string) (*Repo, error) {
 			}
 		}
 	}
-	return nil, errors.New(fmt.Sprintf("Invalid repository URL: %s", rawRepo))
+	return nil, fmt.Errorf("invalid repository URL %s", rawRepo)
 }
