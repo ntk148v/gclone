@@ -184,8 +184,7 @@ func main() {
 			stderr := io.MultiWriter(os.Stderr, &stderrBuf)
 			cmd.Stderr = stderr
 			cmd.Stdout = stdout
-			err = cmd.Run()
-			if err != nil {
+			if err = cmd.Run(); err != nil {
 				errStr := stderrBuf.String()
 				fmt.Fprintf(os.Stderr, "Error cloning %s to directory %s: %s\n", rawRepo, dir, errStr)
 				if !strings.Contains(errStr, "already exists and is not an empty directory") {
