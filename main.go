@@ -65,6 +65,11 @@ var (
 			`[:/]*` +
 			`(?P<port>[\d]+){0,1}\/` +
 			`(?P<path>[^\.]+)(\.git|\/)?$`),
+		regexp.MustCompile(`((?P<protocol>\w+)://)?` +
+			`((?P<user>\w+)@)?` +
+			`((?P<resource>[\w\.\-]+))` +
+			`(?P<path>(\/(?P<owner>\w+)/)?` +
+			`(\/?(?P<name>[\w\-]+)(\.git|\/)?)?)$`),
 	}
 	workspace = os.Getenv("WORKSPACE")
 )
@@ -141,6 +146,10 @@ func main() {
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Error parsing the input repository URL: %s\n", err.Error())
 				return
+			}
+
+			if repo.Protocol != "" && !strings.HasPrefix(rawRepo, repo.Protocol) {
+				rawRepo = repo.Protocol + "://" + rawRepo
 			}
 
 			// Create repository folder if not exist
@@ -251,6 +260,12 @@ func parseRepo(rawRepo string) (*Repo, error) {
 					Resource: m[3],
 					Port:     m[4],
 					Path:     strings.TrimSuffix(m[5], ".git"),
+				}, nil
+			case 6:
+				return &Repo{
+					Protocol: "https",
+					Resource: m[6],
+					Path:     strings.TrimSuffix(m[7], ".git"),
 				}, nil
 			}
 		}
