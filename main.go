@@ -16,6 +16,7 @@ package main
 
 import (
 	"bytes"
+	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -27,8 +28,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-
-	"gopkg.in/alecthomas/kingpin.v2"
 )
 
 var (
@@ -81,34 +80,44 @@ type Repo struct {
 	Name     string
 }
 
+var (
+	force      bool
+	rawClnOpts string
+)
+
+func init() {
+	flag.BoolVar(&force, "force", false, "Force clone, remove an existing source code.")
+	flag.BoolVar(&force, "f", false, "Force clone, remove an existing source code.")
+	flag.StringVar(&rawClnOpts, "clone-opts", "",
+		"Git clone command options, separate by blank space character. For more details \"man git-clone\"")
+}
+
 func main() {
 	if os.Getenv("DEBUG") != "" {
 		runtime.SetBlockProfileRate(20)
 		runtime.SetMutexProfileFraction(20)
 	}
 
-	a := kingpin.New(filepath.Base(os.Args[0]), "A lazy tool written by Golang to clone multiple git repositories then place these to the right folders.")
-	a.HelpFlag.Short('h')
-
 	var (
-		rawRepos   []string
-		force      bool
-		rawClnOpts string
-		wg         sync.WaitGroup
+		wg       sync.WaitGroup
+		rawRepos []string
 	)
-	a.Flag("force",
-		"Force clone, remove an existing source code.").
-		Short('f').BoolVar(&force)
-	a.Flag("clone-opts",
-		"Git clone command options, separate by blank space character. For more details `man git-clone`").
-		StringVar(&rawClnOpts)
-	a.Arg("repositories",
-		"Repository URL(s), separate by blank space. For example: git@github.com:x/y.git https://github.com/x/y.git...").
-		Required().StringsVar(&rawRepos)
-	_, err := a.Parse(os.Args[1:])
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error parsing commandline arguments: %s", err.Error())
-		a.Usage(os.Args[1:])
+
+	flag.Usage = func() {
+		w := flag.CommandLine.Output()
+		fmt.Fprintf(w, "A lazy tool written by Golang to clone multiple git repositories then place these to the right folders.\n\n")
+		fmt.Fprintf(w, "Usage: %s [<flags>] <repositories>...\n\n", filepath.Base(os.Args[0]))
+		fmt.Fprintf(w, "Flags:\n")
+		flag.PrintDefaults()
+		fmt.Fprintf(w, "Args:\n")
+		fmt.Fprintln(w, "  <repositories>  Repository URL(s), separate by blank space. For example: git@github.com:x/y.git https://github.com/x/y.git...")
+	}
+	flag.Parse()
+
+	rawRepos = flag.Args()
+	if len(rawRepos) == 0 {
+		fmt.Fprintf(os.Stderr, "Error parsing commandline arguments: required argument 'repositories' not provided")
+		flag.Usage()
 		os.Exit(2)
 	}
 
@@ -130,7 +139,7 @@ func main() {
 			// Verify URL
 			repo, err := parseRepo(rawRepo)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error parsing the input repository URL: %s", err.Error())
+				fmt.Fprintf(os.Stderr, "Error parsing the input repository URL: %s\n", err.Error())
 				return
 			}
 
@@ -169,7 +178,7 @@ func main() {
 			err = cmd.Run()
 			if err != nil {
 				errStr := stderrBuf.String()
-				fmt.Fprintf(os.Stderr, "Error cloning %s to directory %s: %s", rawRepo, dir, errStr)
+				fmt.Fprintf(os.Stderr, "Error cloning %s to directory %s: %s\n", rawRepo, dir, errStr)
 				if !strings.Contains(errStr, "already exists and is not an empty directory") {
 					os.RemoveAll(dir)
 				}
