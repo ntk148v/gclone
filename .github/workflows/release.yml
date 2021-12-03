@@ -1,0 +1,38 @@
+---
+name: "tagged-release"
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  tagged-release:
+    name: Tagged Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Set up Go 1.16
+        uses: actions/setup-go@v1
+        with:
+          go-version: 1.16
+        id: go
+
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Build & test
+        run: |
+          GOOS=windows GOARCH=386 go build -ldflags "-s -w" -o build/gclone-windows-x86.exe *.go
+          GOOS=windows GOARCH=amd64 go build -ldflags "-s -w" -o build/gclone-windows.exe *.go
+          GOOS=linux GOARCH=386 go build -ldflags "-s -w" -o build/gclone-linux-x86 *.go
+          GOOS=linux GOARCH=amd64 go build -ldflags "-s -w" -o build/gclone-linux *.go
+          GOOS=darwin GOARCH=amd64 go build -ldflags "-s -w" -o build/gclone-darwin *.go
+
+      - name: Create release
+        uses: marvinpinto/action-automatic-releases@latest
+        with:
+          repo_token: "${{ secrets.GITHUB_TOKEN }}"
+          prerelease: false
+          files: |
+            build/*
