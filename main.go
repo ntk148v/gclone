@@ -72,6 +72,7 @@ var (
 			`(\/?(?P<name>[\w\-]+)(\.git|\/)?)?)$`),
 	}
 	workspace = os.Getenv("WORKSPACE")
+	editor    = os.Getenv("EDITOR")
 )
 
 // Repo represents a repository structure.
@@ -87,10 +88,13 @@ type Repo struct {
 
 var (
 	force      bool
+	open       bool
 	rawClnOpts string
 )
 
 func init() {
+	flag.BoolVar(&open, "open", false, "Open your cloned repository with your favourite editor ($EDITOR).")
+	flag.BoolVar(&open, "o", false, "Open your cloned repository with your favourite editor ($EDITOR).")
 	flag.BoolVar(&force, "force", false, "Force clone, remove an existing source code.")
 	flag.BoolVar(&force, "f", false, "Force clone, remove an existing source code.")
 	flag.StringVar(&rawClnOpts, "clone-opts", "",
@@ -197,6 +201,17 @@ func main() {
 
 			fmt.Printf("Repository %s is cloned to %s\n", repo.Path, dir)
 			// TODO(kiennt): Find a way to cd into the directory :( os.Chdir doesn't work at all.
+
+			if open {
+				// Open the repository with your favourite editor
+				cmd = exec.Command(editor, dir)
+				cmd.Stdin = os.Stdin
+				cmd.Stdout = os.Stdout
+				if err := cmd.Run(); err != nil {
+					fmt.Fprintf(os.Stderr, "Error opening %s directory with editor %s", dir, editor)
+					return
+				}
+			}
 		}(r)
 	}
 
