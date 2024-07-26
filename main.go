@@ -141,6 +141,8 @@ func main() {
 		wg.Add(1)
 		go func(rawRepo string) {
 			defer wg.Done()
+			// Transform to lowercase
+			rawRepo = strings.ToLower(rawRepo)
 			// Verify URL
 			repo, err := parseRepo(rawRepo)
 			if err != nil {
