@@ -1,3 +1,3 @@
 module github.com/ntk148v/gclone
 
-go 1.22
+go 1.26
