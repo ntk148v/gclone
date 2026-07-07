@@ -12,6 +12,7 @@ builds:
     env:
       - CGO_ENABLED=0
     flags:
+      - -trimpath
       - -buildvcs=false
       - -buildinfo=false
     goos:
@@ -26,15 +27,6 @@ builds:
         goarch: 386
     ldflags:
       - -s -w -buildid=
-    trimpath: true
-    no_unique_timestamp: true
-
-universal_binary: false
-
-after:
-  hooks:
-    - cmd: upx --best --lzma {{ .Path }}
-      continue_on_error: true
 
 archives:
   - formats: [tar.gz]
