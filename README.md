@@ -33,13 +33,15 @@ The directory tree will be like the follow, it is easier to manage.
 
 ## Install
 
+### From source
+
 ```bash
-$ go get -d github.com/ntk148v/gclone
-$ cd $GOPATH/src/github.com/ntk148v/gclone
-$ GO111MODULE=on go build -o gclone main.go
+$ go install github.com/ntk148v/gclone@latest
 ```
 
-Or simply get the binary file [here](./bin).
+### From releases
+
+Download the latest binary from the [releases page](https://github.com/ntk148v/gclone/releases).
 
 ## Usage
 
@@ -49,8 +51,8 @@ Simply pass repository URL(s) as gclone command arguments. Supported forms inclu
 $ export WORKSPACE=/path/to/your/workspace
 ```
 
-```bash
-$ ./bin/gclone -h
+```
+$ gclone -h
 A lazy tool written by Golang to clone multiple git repositories then place these to the right folders.
 
 Usage: main [<flags>] <repositories>...
