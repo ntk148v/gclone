@@ -43,7 +43,7 @@ Or simply get the binary file [here](./bin).
 
 ## Usage
 
-Simply pass a repository URL as gclone command argument. If you want to change the default workspace folder, please export it:
+Simply pass repository URL(s) as gclone command arguments. Supported forms include HTTPS, SSH, SCP-like SSH, `git://`, nested repository paths, and `file://` repositories. If you want to change the default workspace folder, please export it:
 
 ```bash
 $ export WORKSPACE=/path/to/your/workspace
@@ -61,8 +61,11 @@ Flags:
   -f	Force clone, remove an existing source code.
   -force
     	Force clone, remove an existing source code.
+  -o	Open your cloned repository with your favourite editor ($EDITOR).
+  -open
+    	Open your cloned repository with your favourite editor ($EDITOR).
 Args:
-  <repositories>  Repository URL(s), separate by blank space. For example: git@github.com:x/y.git https://github.com/x/y.git...
+  <repositories>  Repository URL(s), separate by blank space. For example: git@github.com:x/y.git https://github.com/x/y.git file:///tmp/repo
 ```
 
 * Clone a single repostitory:
@@ -84,4 +87,10 @@ $ gclone https://github.com/ntk148v/repo1.git https://github.com/ntk148v/repo2.g
 
 ```bash
 $ gclone --clone-opts="-v -q" https://github.com/ntk148v/repo1.git
+```
+
+* Clone from a local `file://` repository:
+
+```bash
+$ gclone file:///tmp/repo
 ```
