@@ -68,7 +68,7 @@ Args:
   <repositories>  Repository URL(s), separate by blank space. For example: git@github.com:x/y.git https://github.com/x/y.git file:///tmp/repo
 ```
 
-* Clone a single repostitory:
+- Clone a single repostitory:
 
 ```bash
 # Without force
@@ -77,19 +77,19 @@ $ gclone https://github.com/ntk148v/rep1.git
 $ gclone https://github.com/ntk148v/repo1.git
 ```
 
-* Clone mutilple repositories:
+- Clone mutilple repositories:
 
 ```bash
 $ gclone https://github.com/ntk148v/repo1.git https://github.com/ntk148v/repo2.git
 ```
 
-* Clone with some extra git clone options:
+- Clone with some extra git clone options:
 
 ```bash
 $ gclone --clone-opts="-v -q" https://github.com/ntk148v/repo1.git
 ```
 
-* Clone from a local `file://` repository:
+- Clone from a local `file://` repository:
 
 ```bash
 $ gclone file:///tmp/repo
