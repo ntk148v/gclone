@@ -1,11 +1,10 @@
 # gclone
 
-[![license](https://img.shields.io/badge/license-Apache%20v2.0-blue.svg)](LICENSE) [![Go Report Card](https://goreportcard.com/badge/github.com/ntk148v/gclone)](https://goreportcard.com/report/github.com/ntk148v/gclone)
+[![license](https://img.shields.io/badge/license-Apache%20v2.0-blue.svg)](LICENSE)
 
 > I make it for fun and also for my laziness :trollface:.
-> To learn Golang as well.
 
-A lazy tool written by pure Golang to clone multiple git repositories then place it to the right folders
+A lazy tool written in pure Bash to clone multiple git repositories then place it to the right folders
 
 For example, the repository with url: https://github.com/ntk148v/gclone.git will be placed in folder: `$WORKSPACE/github.com/ntk148v/gclone`. `WORKSPACE` is an environment variable to define your workspace folder path, by default it is `$HOME/Workspace`.
 
@@ -35,8 +34,12 @@ The directory tree will be like the follow, it is easier to manage.
 
 ### From source
 
+Requires `bash` and `git` only:
+
 ```bash
-$ go install github.com/ntk148v/gclone@latest
+$ git clone https://github.com/ntk148v/gclone.git
+$ cd gclone
+$ install -m 755 gclone ~/.local/bin/gclone
 ```
 
 ### From releases
@@ -53,9 +56,9 @@ $ export WORKSPACE=/path/to/your/workspace
 
 ```
 $ gclone -h
-A lazy tool written by Golang to clone multiple git repositories then place these to the right folders.
+A lazy tool written in pure Bash to clone multiple git repositories then place these to the right folders.
 
-Usage: main [<flags>] <repositories>...
+Usage: gclone [<flags>] <repositories>...
 
 Flags:
   -clone-opts string

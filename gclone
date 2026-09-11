@@ -1,0 +1,331 @@
+#!/usr/bin/env bash
+# gclone - lazy tool to clone git repos into $WORKSPACE/<host>/<path>
+# Pure bash port of the original Go implementation.
+set -u
+export LC_ALL=C
+
+VERSION="0.0.0-dev"
+FORCE=0
+OPEN=0
+CLONE_OPTS="${CLONE_OPTS:-}"
+
+usage() {
+  local bin="${0##*/}"
+  cat <<EOF
+A lazy tool written by pure Bash to clone multiple git repositories then place these to the right folders.
+
+Usage: $bin [<flags>] <repositories>...
+
+Flags:
+  -f, -force, --force           Force clone, remove an existing source code.
+  -o, -open, --open             Open your cloned repository with your favourite editor (\$EDITOR).
+  --clone-opts, -clone-opts string
+                                Git clone command options, separate by blank space character. For more details "man git-clone"
+  -h, -help, --help             Show this help and exit.
+Args:
+  <repositories>  Repository URL(s), separate by blank space. For example: git@github.com:x/y.git https://github.com/x/y.git file:///tmp/repo
+EOF
+}
+
+# Percent-decode one path segment (Go url.PathUnescape semantics for our use).
+# Prints decoded string; returns non-zero on invalid % encoding.
+url_decode() {
+  local s="$1" out="" i=0 c hex
+  while (( i < ${#s} )); do
+    c="${s:i:1}"
+    if [[ "$c" == "%" ]]; then
+      hex="${s:i+1:2}"
+      if [[ ${#hex} != 2 || ! "$hex" =~ ^[0-9A-Fa-f]{2}$ ]]; then
+        return 1
+      fi
+      printf -v c '%b' "\\x$hex"
+      # Go rejects NUL bytes in path segments.
+      if [[ "$c" == "" ]]; then
+        return 1
+      fi
+      out+="$c"
+      (( i += 3 ))
+    else
+      out+="$c"
+      (( i++ ))
+    fi
+  done
+  printf '%s' "$out"
+}
+
+# clean_path <raw> <trim_git:0|1>
+# Prints cleaned slash-joined path; fails on empty/unsafe input.
+clean_path() {
+  local raw="$1" trim_git="$2"
+  raw="${raw//\\//}"
+  # Decode before splitting: Go decodes %XX at URL-parse level, so %2F
+  # acts as a separator and %2E can't smuggle in "." / "..".
+  if ! raw="$(url_decode "$raw")"; then
+    return 1
+  fi
+  # trim leading/trailing slashes
+  raw="${raw#"${raw%%[!/]*}"}"
+  raw="${raw%"${raw##*[!/]}"}"
+  [[ -z "$raw" ]] && return 1
+  local IFS='/'
+  # shellcheck disable=SC2206
+  local parts=( $raw ) _p
+  local cleaned=() i n=${#parts[@]}
+  (( n == 0 )) && return 1
+  for (( i=0; i<n; i++ )); do
+    _p="${parts[i]}"
+    if (( trim_git == 1 && i == n-1 )); then
+      _p="${_p%.git}"
+    fi
+    # Windows drive "C:" -> "C" (first segment only)
+    if (( i == 0 )) && [[ ${#_p} == 2 && "${_p:1:1}" == ":" ]]; then
+      _p="${_p:0:1}"
+    fi
+    if [[ -z "$_p" || "$_p" == "." || "$_p" == ".." ]]; then
+      return 1
+    fi
+    cleaned+=("$_p")
+  done
+  (( ${#cleaned[@]} == 0 )) && return 1
+  local IFS='/'
+  printf '%s' "${cleaned[*]}"
+}
+
+# Globals set by parse_repo: REPO_RESOURCE, REPO_PATH
+REPO_RESOURCE=""
+REPO_PATH=""
+
+repo_from() {
+  local resource="$1" raw_path="$2"
+  local r p
+  if ! r="$(clean_path "$resource" 0)"; then
+    return 1
+  fi
+  # resource must be a single segment (no slash survives cleaning as one)
+  if [[ "$r" == *"/"* ]]; then
+    return 1
+  fi
+  if ! p="$(clean_path "$raw_path" 1)"; then
+    return 1
+  fi
+  REPO_RESOURCE="$r"
+  REPO_PATH="$p"
+}
+
+# Lexical absolute path (no symlink resolution, works for non-existent paths).
+abspath() {
+  local p="$1"
+  if [[ "$p" != /* ]]; then
+    p="$PWD/$p"
+  fi
+  local IFS='/'
+  # shellcheck disable=SC2206
+  local segs=( $p ) out=() s
+  for s in "${segs[@]}"; do
+    case "$s" in
+      ""|".") continue ;;
+      "..") (( ${#out[@]} > 0 )) && unset 'out[${#out[@]}-1]' ;;
+      *) out+=("$s") ;;
+    esac
+  done
+  if (( ${#out[@]} == 0 )); then
+    printf '/'
+  else
+    local IFS='/'
+    printf '/%s' "${out[*]}"
+  fi
+}
+
+parse_repo() {
+  local raw="$1"
+  # trim surrounding whitespace
+  raw="${raw#"${raw%%[![:space:]]*}"}"
+  raw="${raw%"${raw##*[![:space:]]}"}"
+  [[ -z "$raw" ]] && return 1
+
+  local scheme rest authority path host
+  if [[ "$raw" == *"://"* ]]; then
+    scheme="${raw%%://*}"
+    rest="${raw#*://}"
+    if [[ "$scheme" == "file" ]]; then
+      if [[ "$rest" == */* ]]; then
+        host="${rest%%/*}"
+        path="/${rest#*/}"
+      else
+        host="$rest"
+        path="/"
+      fi
+      # strip query/fragment from path
+      path="${path%%\?*}"
+      path="${path%%\#*}"
+      [[ -z "$host" ]] && host="local"
+      repo_from "$host" "$path"
+      return $?
+    fi
+    # generic URL: authority is up to next / ? #
+    authority="$rest"
+    path=""
+    if [[ "$rest" == */* ]]; then
+      authority="${rest%%/*}"
+      path="/${rest#*/}"
+    fi
+    # strip userinfo
+    if [[ "$authority" == *"@"* ]]; then
+      host="${authority##*@}"
+    else
+      host="$authority"
+    fi
+    # strip port (and brackets for IPv6)
+    if [[ "$host" == "["* ]]; then
+      host="${host%%\]*}"
+      host="${host#\[}"
+    else
+      host="${host%%:*}"
+    fi
+    [[ -z "$host" ]] && return 1
+    path="${path%%\?*}"
+    path="${path%%\#*}"
+    [[ -z "$path" ]] && return 1
+    repo_from "$host" "$path"
+    return $?
+  fi
+
+  # scp-like: [user@]host:path (host part has no /)
+  if [[ "$raw" == *":"* ]]; then
+    local before="${raw%%:*}"
+    if [[ "$before" != *"/"* ]]; then
+      host="$before"
+      path="${raw#*:}"
+      if [[ "$host" == *"@"* ]]; then
+        host="${host##*@}"
+      fi
+      repo_from "$host" "$path"
+      return $?
+    fi
+  fi
+
+  # bare host/path
+  if [[ "$raw" == */* ]]; then
+    local first="${raw%%/*}" remainder="${raw#*/}"
+    if [[ "$first" == *"."* ]]; then
+      repo_from "$first" "$remainder"
+      return $?
+    fi
+  fi
+  return 1
+}
+
+# clone_dir <workspace> prints target dir; fails if it escapes workspace.
+clone_dir() {
+  local workspace="$1" dir ws_abs
+  [[ -z "$workspace" || -z "$REPO_RESOURCE" || -z "$REPO_PATH" ]] && return 1
+  ws_abs="$(abspath "$workspace")"
+  dir="$ws_abs/$REPO_RESOURCE/$REPO_PATH"
+  if [[ "$dir" == "$ws_abs" || "$dir" != "$ws_abs"/* ]]; then
+    return 1
+  fi
+  printf '%s' "$dir"
+}
+
+cleanup_failed_clone() {
+  local workspace="$1" dir="$2" existed="$3"
+  if (( existed == 0 )); then
+    rm -rf -- "$dir"
+  fi
+  local ws_abs parent
+  ws_abs="$(abspath "$workspace")"
+  parent="$(dirname -- "$dir")"
+  while [[ "$parent" != "$ws_abs" && "$parent" == "$ws_abs"/* ]]; do
+    rmdir -- "$parent" 2>/dev/null || break
+    parent="$(dirname -- "$parent")"
+  done
+}
+
+clone_one() {
+  local raw_repo="$1" workspace="$2"
+  local dir existed=0
+  if ! parse_repo "$raw_repo"; then
+    echo "error parsing the input repository URL: unsupported repository URL \"$raw_repo\"" >&2
+    return 1
+  fi
+  if ! dir="$(clone_dir "$workspace")"; then
+    echo "error parsing the input repository URL: invalid workspace or repository" >&2
+    return 1
+  fi
+  if [[ -e "$dir" ]]; then
+    existed=1
+  fi
+  if (( FORCE == 1 )); then
+    rm -rf -- "$dir" || { echo "remove $dir: failed" >&2; return 1; }
+  fi
+  if ! mkdir -p -- "$(dirname -- "$dir")"; then
+    echo "create parent directory for $dir: failed" >&2
+    return 1
+  fi
+  local -a args=(clone --progress)
+  if [[ -n "$CLONE_OPTS" ]]; then
+    # shellcheck disable=SC2206
+    local -a extra=( $CLONE_OPTS )
+    args+=("${extra[@]}")
+  fi
+  args+=(-- "$raw_repo" "$dir")
+  if ! git "${args[@]}"; then
+    cleanup_failed_clone "$workspace" "$dir" "$existed"
+    echo "error cloning $raw_repo to directory $dir" >&2
+    return 1
+  fi
+  printf 'Repository %s is cloned to %s\n' "$REPO_PATH" "$dir"
+  if (( OPEN == 1 )); then
+    if [[ -z "${EDITOR:-}" ]]; then
+      echo "EDITOR is not set" >&2
+      return 1
+    fi
+    # shellcheck disable=SC2086
+    if ! $EDITOR "$dir"; then
+      echo "error opening $dir directory with editor $EDITOR" >&2
+      return 1
+    fi
+  fi
+}
+
+# ---- flag parsing (Go flag compatible: -flag, --flag, -flag=x, --flag x) ----
+REPOS=()
+while (( $# > 0 )); do
+  case "$1" in
+    -h|-help|--help|help)
+      usage; exit 0 ;;
+    -o|-open|--open)
+      OPEN=1; shift ;;
+    -f|-force|--force)
+      FORCE=1; shift ;;
+    -clone-opts|--clone-opts)
+      [[ $# -lt 2 ]] && { echo "flag needs an argument: $1" >&2; exit 2; }
+      CLONE_OPTS="$2"; shift 2 ;;
+    -clone-opts=*|--clone-opts=*)
+      CLONE_OPTS="${1#*=}"; shift ;;
+    --) shift; while (( $# > 0 )); do REPOS+=("$1"); shift; done; break ;;
+    -*) echo "flag provided but not defined: $1" >&2; usage >&2; exit 2 ;;
+    *) REPOS+=("$1"); shift ;;
+  esac
+done
+
+if (( ${#REPOS[@]} == 0 )); then
+  echo "Error parsing commandline arguments: required argument 'repositories' not provided" >&2
+  usage >&2
+  exit 2
+fi
+
+WORKSPACE="${WORKSPACE:-}"
+if [[ -z "$WORKSPACE" ]]; then
+  WORKSPACE="$HOME/Workspace"
+fi
+
+# parallel clones, like the original WaitGroup fan-out
+pids=()
+for r in "${REPOS[@]}"; do
+  clone_one "$r" "$WORKSPACE" &
+  pids+=($!)
+done
+for pid in "${pids[@]}"; do
+  wait "$pid" || true
+done
