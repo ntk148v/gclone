@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"path/filepath"
 	"reflect"
 	"testing"
@@ -101,4 +102,50 @@ func filepathSplit(p string) []string {
 		parts[len(parts)-1] += string(r)
 	}
 	return parts
+}
+
+func TestCleanupFailedClone(t *testing.T) {
+	ws := t.TempDir()
+	dir := filepath.Join(ws, "github.com", "owner", "repo")
+	if err := os.MkdirAll(filepath.Dir(dir), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	// New dirs, failed clone: target + empty parents pruned, workspace kept.
+	cleanupFailedClone(ws, dir, false)
+	if _, err := os.Stat(dir); !os.IsNotExist(err) {
+		t.Fatalf("dir still exists: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(ws, "github.com")); !os.IsNotExist(err) {
+		t.Fatalf("empty parents not pruned: %v", err)
+	}
+	if _, err := os.Stat(ws); err != nil {
+		t.Fatalf("workspace removed: %v", err)
+	}
+
+	// Pre-existing target kept, but empty parents still pruned.
+	dir2 := filepath.Join(ws, "github.com", "owner2", "repo2")
+	if err := os.MkdirAll(dir2, 0755); err != nil {
+		t.Fatal(err)
+	}
+	cleanupFailedClone(ws, dir2, true)
+	if _, err := os.Stat(dir2); err != nil {
+		t.Fatalf("pre-existing dir removed: %v", err)
+	}
+
+	// Non-empty parent kept.
+	dir3 := filepath.Join(ws, "github.com", "owner3", "repo3")
+	if err := os.MkdirAll(filepath.Dir(dir3), 0755); err != nil {
+		t.Fatal(err)
+	}
+	keep := filepath.Join(ws, "github.com", "owner3", "keep")
+	if err := os.WriteFile(keep, []byte("x"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	cleanupFailedClone(ws, dir3, false)
+	if _, err := os.Stat(filepath.Join(ws, "github.com", "owner3")); err != nil {
+		t.Fatalf("non-empty parent pruned: %v", err)
+	}
 }

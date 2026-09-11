@@ -105,6 +105,8 @@ func clone(rawRepo, workspace string) error {
 	if err != nil {
 		return err
 	}
+	_, statErr := os.Stat(dir)
+	dirExisted := statErr == nil || !os.IsNotExist(statErr)
 	if force {
 		if err := os.RemoveAll(dir); err != nil {
 			return fmt.Errorf("remove %s: %w", dir, err)
@@ -122,6 +124,7 @@ func clone(rawRepo, workspace string) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
+		cleanupFailedClone(workspace, dir, dirExisted)
 		return fmt.Errorf("error cloning %s to directory %s: %w", rawRepo, dir, err)
 	}
 
@@ -139,6 +142,23 @@ func clone(rawRepo, workspace string) error {
 		}
 	}
 	return nil
+}
+
+func cleanupFailedClone(workspace, dir string, dirExisted bool) {
+	if !dirExisted {
+		os.RemoveAll(dir)
+	}
+	workspaceAbs, err := filepath.Abs(workspace)
+	if err != nil {
+		return
+	}
+	parent := filepath.Dir(dir)
+	for parent != workspaceAbs && strings.HasPrefix(parent, workspaceAbs+string(filepath.Separator)) {
+		if err := os.Remove(parent); err != nil {
+			break
+		}
+		parent = filepath.Dir(parent)
+	}
 }
 
 func cloneDir(workspace string, repo *Repo) (string, error) {
