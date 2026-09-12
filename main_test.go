@@ -190,3 +190,13 @@ func TestSyncOneRejectsDirty(t *testing.T) {
 		t.Fatal("pull ran on dirty repo")
 	}
 }
+
+func TestEditorSplitsArgs(t *testing.T) {
+	fields := strings.Fields("code --wait")
+	if len(fields) != 2 || fields[0] != "code" || fields[1] != "--wait" {
+		t.Fatal("Fields split broken")
+	}
+	if got := editorCmd("code --wait", "/tmp/x"); len(got) != 3 || got[0] != "code" {
+		t.Fatalf("editorCmd() = %v, want [code --wait dir]", got)
+	}
+}

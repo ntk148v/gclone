@@ -23,7 +23,6 @@ import (
 	"os/exec"
 	"os/user"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"sync"
 )
@@ -51,11 +50,6 @@ func init() {
 }
 
 func main() {
-	if os.Getenv("DEBUG") != "" {
-		runtime.SetBlockProfileRate(20)
-		runtime.SetMutexProfileFraction(20)
-	}
-
 	flag.Usage = func() {
 		w := flag.CommandLine.Output()
 		fmt.Fprintln(w, "A lazy tool written by pure Golang to clone multiple git repositories then place these to the right folders.")
@@ -106,16 +100,31 @@ func main() {
 	}
 
 	var wg sync.WaitGroup
+	sem := make(chan struct{}, 4)
+	var mu sync.Mutex
+	fails := 0
 	for _, raw := range rawRepos {
 		wg.Add(1)
 		go func(rawRepo string) {
 			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
 			if err := clone(rawRepo, workspace); err != nil {
 				fmt.Fprintln(os.Stderr, err)
+				mu.Lock()
+				fails++
+				mu.Unlock()
 			}
 		}(raw)
 	}
 	wg.Wait()
+	if fails > 0 {
+		os.Exit(1)
+	}
+}
+
+func editorCmd(ed, dir string) []string {
+	return append(strings.Fields(ed), dir)
 }
 
 func discover(ws string) []string {
@@ -216,7 +225,7 @@ func clone(rawRepo, workspace string) error {
 		return err
 	}
 	_, statErr := os.Stat(dir)
-	dirExisted := statErr == nil || !os.IsNotExist(statErr)
+	dirExisted := statErr == nil
 	if force {
 		if err := os.RemoveAll(dir); err != nil {
 			return fmt.Errorf("remove %s: %w", dir, err)
@@ -243,7 +252,8 @@ func clone(rawRepo, workspace string) error {
 		if editor == "" {
 			return fmt.Errorf("EDITOR is not set")
 		}
-		cmd = exec.Command(editor, dir)
+		parts := editorCmd(editor, dir)
+		cmd = exec.Command(parts[0], parts[1:]...)
 		cmd.Stdin = os.Stdin
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
