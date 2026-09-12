@@ -149,3 +149,21 @@ func TestCleanupFailedClone(t *testing.T) {
 		t.Fatalf("non-empty parent pruned: %v", err)
 	}
 }
+
+func TestDiscoverFindsTwoLevelRepos(t *testing.T) {
+	ws := t.TempDir()
+	mk := func(rel string) {
+		if err := os.MkdirAll(filepath.Join(ws, rel, ".git"), 0755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mk(filepath.Join("github.com", "a", "r1"))
+	mk(filepath.Join("github.com", "a", "r2"))
+	if err := os.MkdirAll(filepath.Join(ws, "github.com", "a", "notrepo"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	got := discover(ws)
+	if len(got) != 2 {
+		t.Fatalf("discover() = %d dirs %v, want 2", len(got), got)
+	}
+}

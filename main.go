@@ -66,6 +66,21 @@ func main() {
 	}
 	flag.Parse()
 
+	args := flag.Args()
+	if len(args) > 0 && (args[0] == "list" || args[0] == "sync") {
+		if workspace == "" {
+			curUser, err := user.Current()
+			if err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				os.Exit(2)
+			}
+			workspace = filepath.Join(curUser.HomeDir, "Workspace")
+		}
+		if args[0] == "list" {
+			os.Exit(runList(workspace))
+		}
+	}
+
 	rawRepos := flag.Args()
 	if len(rawRepos) == 0 {
 		fmt.Fprintln(os.Stderr, "Error parsing commandline arguments: required argument 'repositories' not provided")
@@ -73,12 +88,12 @@ func main() {
 		os.Exit(2)
 	}
 
-	curUser, err := user.Current()
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(2)
-	}
 	if workspace == "" {
+		curUser, err := user.Current()
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(2)
+		}
 		workspace = filepath.Join(curUser.HomeDir, "Workspace")
 	}
 
@@ -93,6 +108,51 @@ func main() {
 		}(raw)
 	}
 	wg.Wait()
+}
+
+func discover(ws string) []string {
+	var out []string
+	hosts, err := os.ReadDir(ws)
+	if err != nil {
+		return nil
+	}
+	for _, h := range hosts {
+		if !h.IsDir() {
+			continue
+		}
+		owners, err := os.ReadDir(filepath.Join(ws, h.Name()))
+		if err != nil {
+			continue
+		}
+		for _, o := range owners {
+			if !o.IsDir() {
+				continue
+			}
+		repos, err := os.ReadDir(filepath.Join(ws, h.Name(), o.Name()))
+			if err != nil {
+				continue
+			}
+			for _, r := range repos {
+				if !r.IsDir() {
+					continue
+				}
+				full := filepath.Join(ws, h.Name(), o.Name(), r.Name())
+				st, err := os.Stat(filepath.Join(full, ".git"))
+				if err != nil || !st.IsDir() {
+					continue
+				}
+				out = append(out, full)
+			}
+		}
+	}
+	return out
+}
+
+func runList(ws string) int {
+	for _, d := range discover(ws) {
+		fmt.Println(d)
+	}
+	return 0
 }
 
 func clone(rawRepo, workspace string) error {
