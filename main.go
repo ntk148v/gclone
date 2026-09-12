@@ -53,29 +53,32 @@ func main() {
 	flag.Usage = func() {
 		w := flag.CommandLine.Output()
 		fmt.Fprintln(w, "A lazy tool written by pure Golang to clone multiple git repositories then place these to the right folders.")
-		fmt.Fprintf(w, "\nUsage: %s [<flags>] <repositories>...\n\n", filepath.Base(os.Args[0]))
-		fmt.Fprintln(w, "Flags:")
+		fmt.Fprintf(w, "\nUsage:\n")
+		fmt.Fprintf(w, "  %s [<flags>] <repositories>...\n", filepath.Base(os.Args[0]))
+		fmt.Fprintf(w, "  %s list\n", filepath.Base(os.Args[0]))
+		fmt.Fprintf(w, "  %s sync\n\n", filepath.Base(os.Args[0]))
+		fmt.Fprintln(w, "Commands:")
+		fmt.Fprintln(w, "  list            List all cloned repositories in workspace")
+		fmt.Fprintln(w, "  sync            Pull latest changes for all clean repositories in workspace")
+		fmt.Fprintln(w, "\nFlags:")
 		flag.PrintDefaults()
-		fmt.Fprintln(w, "Args:")
+		fmt.Fprintln(w, "\nArgs:")
 		fmt.Fprintln(w, "  <repositories>  Repository URL(s), separate by blank space. For example: git@github.com:x/y.git https://github.com/x/y.git file:///tmp/repo")
 	}
 	flag.Parse()
 
 	args := flag.Args()
 	if len(args) > 0 && (args[0] == "list" || args[0] == "sync") {
-		if workspace == "" {
-			curUser, err := user.Current()
-			if err != nil {
-				fmt.Fprintln(os.Stderr, err)
-				os.Exit(2)
-			}
-			workspace = filepath.Join(curUser.HomeDir, "Workspace")
+		ws, err := resolveWorkspace()
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(2)
 		}
 		if args[0] == "list" {
-			os.Exit(runList(workspace))
+			os.Exit(runList(ws))
 		}
 		if args[0] == "sync" {
-			n := runSync(workspace)
+			n := runSync(ws)
 			if n > 0 {
 				os.Exit(1)
 			}
@@ -90,13 +93,10 @@ func main() {
 		os.Exit(2)
 	}
 
-	if workspace == "" {
-		curUser, err := user.Current()
-		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(2)
-		}
-		workspace = filepath.Join(curUser.HomeDir, "Workspace")
+	ws, err := resolveWorkspace()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(2)
 	}
 
 	var wg sync.WaitGroup
@@ -109,7 +109,7 @@ func main() {
 			defer wg.Done()
 			sem <- struct{}{}
 			defer func() { <-sem }()
-			if err := clone(rawRepo, workspace); err != nil {
+			if err := clone(rawRepo, ws); err != nil {
 				fmt.Fprintln(os.Stderr, err)
 				mu.Lock()
 				fails++
@@ -123,45 +123,52 @@ func main() {
 	}
 }
 
+func resolveWorkspace() (string, error) {
+	if workspace != "" {
+		return workspace, nil
+	}
+	curUser, err := user.Current()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(curUser.HomeDir, "Workspace"), nil
+}
+
 func editorCmd(ed, dir string) []string {
-	return append(strings.Fields(ed), dir)
+	fields := strings.Fields(ed)
+	if len(fields) == 0 {
+		return nil
+	}
+	return append(fields, dir)
 }
 
 func discover(ws string) []string {
 	var out []string
-	hosts, err := os.ReadDir(ws)
-	if err != nil {
-		return nil
-	}
-	for _, h := range hosts {
-		if !h.IsDir() {
-			continue
-		}
-		owners, err := os.ReadDir(filepath.Join(ws, h.Name()))
+	_ = filepath.WalkDir(ws, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
-			continue
+			return nil
 		}
-		for _, o := range owners {
-			if !o.IsDir() {
-				continue
-			}
-		repos, err := os.ReadDir(filepath.Join(ws, h.Name(), o.Name()))
-			if err != nil {
-				continue
-			}
-			for _, r := range repos {
-				if !r.IsDir() {
-					continue
-				}
-				full := filepath.Join(ws, h.Name(), o.Name(), r.Name())
-				st, err := os.Stat(filepath.Join(full, ".git"))
-				if err != nil || !st.IsDir() {
-					continue
-				}
-				out = append(out, full)
+		if path == ws {
+			return nil
+		}
+		isDir := d.IsDir()
+		if !isDir && d.Type()&os.ModeSymlink != 0 {
+			if fi, err := os.Stat(path); err == nil && fi.IsDir() {
+				isDir = true
 			}
 		}
-	}
+		if !isDir {
+			return nil
+		}
+		if d.Name() == ".git" {
+			return filepath.SkipDir
+		}
+		if _, err := os.Stat(filepath.Join(path, ".git")); err == nil {
+			out = append(out, path)
+			return filepath.SkipDir
+		}
+		return nil
+	})
 	return out
 }
 
@@ -182,10 +189,16 @@ func syncOne(dir string) error {
 		return fmt.Errorf("skip dirty %s", dir)
 	}
 	pull := exec.Command("git", "-C", dir, "pull", "--ff-only")
-	pull.Stdout = os.Stdout
-	pull.Stderr = os.Stderr
-	if err := pull.Run(); err != nil {
+	pullOut, err := pull.CombinedOutput()
+	if err != nil {
+		msg := strings.TrimSpace(string(pullOut))
+		if msg != "" {
+			return fmt.Errorf("pull %s: %w: %s", dir, err, msg)
+		}
 		return fmt.Errorf("pull %s: %w", dir, err)
+	}
+	if s := strings.TrimSpace(string(pullOut)); s != "" {
+		fmt.Printf("[%s] %s\n", dir, s)
 	}
 	return nil
 }
@@ -230,6 +243,7 @@ func clone(rawRepo, workspace string) error {
 		if err := os.RemoveAll(dir); err != nil {
 			return fmt.Errorf("remove %s: %w", dir, err)
 		}
+		dirExisted = false
 	}
 	if err := os.MkdirAll(filepath.Dir(dir), 0755); err != nil {
 		return fmt.Errorf("create parent directory for %s: %w", dir, err)
@@ -249,10 +263,10 @@ func clone(rawRepo, workspace string) error {
 
 	fmt.Printf("Repository %s is cloned to %s\n", repo.Path, dir)
 	if open {
-		if editor == "" {
+		parts := editorCmd(editor, dir)
+		if len(parts) == 0 {
 			return fmt.Errorf("EDITOR is not set")
 		}
-		parts := editorCmd(editor, dir)
 		cmd = exec.Command(parts[0], parts[1:]...)
 		cmd.Stdin = os.Stdin
 		cmd.Stdout = os.Stdout

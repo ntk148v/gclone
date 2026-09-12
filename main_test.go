@@ -151,6 +151,34 @@ func TestCleanupFailedClone(t *testing.T) {
 	}
 }
 
+func TestCloneForceCleansUpOnFailure(t *testing.T) {
+	ws := t.TempDir()
+	dir := filepath.Join(ws, "github.com", "owner", "repo")
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "old.txt"), []byte("old"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	force = true
+	defer func() { force = false }()
+
+	fake := t.TempDir()
+	script := "#!/bin/sh\nexit 1\n"
+	if err := os.WriteFile(filepath.Join(fake, "git"), []byte(script), 0755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", fake+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	err := clone("https://github.com/owner/repo.git", ws)
+	if err == nil {
+		t.Fatal("clone() want error, got nil")
+	}
+	if _, err := os.Stat(dir); !os.IsNotExist(err) {
+		t.Fatalf("dir still exists after failed forced clone: %v", err)
+	}
+}
+
 func TestDiscoverFindsTwoLevelRepos(t *testing.T) {
 	ws := t.TempDir()
 	mk := func(rel string) {
@@ -160,12 +188,21 @@ func TestDiscoverFindsTwoLevelRepos(t *testing.T) {
 	}
 	mk(filepath.Join("github.com", "a", "r1"))
 	mk(filepath.Join("github.com", "a", "r2"))
+	mk(filepath.Join("gitlab.com", "group", "subgroup", "r3"))
+	// Test gitfile (worktree / submodule where .git is a file)
+	worktreeDir := filepath.Join(ws, "github.com", "a", "worktree-repo")
+	if err := os.MkdirAll(worktreeDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(worktreeDir, ".git"), []byte("gitdir: /tmp/fake\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
 	if err := os.MkdirAll(filepath.Join(ws, "github.com", "a", "notrepo"), 0755); err != nil {
 		t.Fatal(err)
 	}
 	got := discover(ws)
-	if len(got) != 2 {
-		t.Fatalf("discover() = %d dirs %v, want 2", len(got), got)
+	if len(got) != 4 {
+		t.Fatalf("discover() = %d dirs %v, want 4", len(got), got)
 	}
 }
 
@@ -198,5 +235,11 @@ func TestEditorSplitsArgs(t *testing.T) {
 	}
 	if got := editorCmd("code --wait", "/tmp/x"); len(got) != 3 || got[0] != "code" {
 		t.Fatalf("editorCmd() = %v, want [code --wait dir]", got)
+	}
+	if got := editorCmd("", "/tmp/x"); len(got) != 0 {
+		t.Fatalf("editorCmd(\"\") = %v, want empty", got)
+	}
+	if got := editorCmd("   ", "/tmp/x"); len(got) != 0 {
+		t.Fatalf("editorCmd(\"   \") = %v, want empty", got)
 	}
 }
