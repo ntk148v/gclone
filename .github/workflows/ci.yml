@@ -1,17 +1,25 @@
 ---
-name: tagged-release
+name: ci
 
 on:
   push:
-    tags:
-      - "v*"
-
-permissions:
-  contents: write
+    branches:
+      - main
+      - master
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+  pull_request:
+    branches:
+      - main
+      - master
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
 
 jobs:
-  tagged-release:
-    name: Tagged Release
+  test:
+    name: Test & Check
     runs-on: ubuntu-latest
 
     steps:
@@ -34,11 +42,9 @@ jobs:
       - name: Run tests
         run: go test -v ./...
 
-      - name: Release
+      - name: Check GoReleaser Config
         uses: goreleaser/goreleaser-action@v7
         with:
           distribution: goreleaser
           version: latest
-          args: release --clean
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          args: check

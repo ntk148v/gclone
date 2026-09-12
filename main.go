@@ -21,7 +21,6 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
-	"os/user"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -127,11 +126,11 @@ func resolveWorkspace() (string, error) {
 	if workspace != "" {
 		return workspace, nil
 	}
-	curUser, err := user.Current()
+	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(curUser.HomeDir, "Workspace"), nil
+	return filepath.Join(home, "Workspace"), nil
 }
 
 func editorCmd(ed, dir string) []string {
