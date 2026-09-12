@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -165,5 +166,27 @@ func TestDiscoverFindsTwoLevelRepos(t *testing.T) {
 	got := discover(ws)
 	if len(got) != 2 {
 		t.Fatalf("discover() = %d dirs %v, want 2", len(got), got)
+	}
+}
+
+func TestSyncOneRejectsDirty(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, ".git"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "dirty.txt"), []byte("x"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	fake := t.TempDir()
+	script := "#!/bin/sh\nif echo \"$*\" | grep -q status; then echo ' M dirty.txt'; exit 0; fi\necho PULLED >> " + filepath.Join(dir, "pulled") + "\nexit 0\n"
+	if err := os.WriteFile(filepath.Join(fake, "git"), []byte(script), 0755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", fake+string(os.PathListSeparator)+os.Getenv("PATH"))
+	if err := syncOne(dir); err == nil || !strings.Contains(err.Error(), "dirty") {
+		t.Fatalf("syncOne() = %v, want dirty error", err)
+	}
+	if _, serr := os.Stat(filepath.Join(dir, "pulled")); !os.IsNotExist(serr) {
+		t.Fatal("pull ran on dirty repo")
 	}
 }

@@ -15,6 +15,7 @@
 package main
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
 	"net/url"
@@ -78,6 +79,13 @@ func main() {
 		}
 		if args[0] == "list" {
 			os.Exit(runList(workspace))
+		}
+		if args[0] == "sync" {
+			n := runSync(workspace)
+			if n > 0 {
+				os.Exit(1)
+			}
+			os.Exit(0)
 		}
 	}
 
@@ -153,6 +161,48 @@ func runList(ws string) int {
 		fmt.Println(d)
 	}
 	return 0
+}
+
+func syncOne(dir string) error {
+	st := exec.Command("git", "-C", dir, "status", "--porcelain")
+	out, err := st.Output()
+	if err != nil {
+		return fmt.Errorf("status %s: %w", dir, err)
+	}
+	if len(bytes.TrimSpace(out)) > 0 {
+		return fmt.Errorf("skip dirty %s", dir)
+	}
+	pull := exec.Command("git", "-C", dir, "pull", "--ff-only")
+	pull.Stdout = os.Stdout
+	pull.Stderr = os.Stderr
+	if err := pull.Run(); err != nil {
+		return fmt.Errorf("pull %s: %w", dir, err)
+	}
+	return nil
+}
+
+func runSync(ws string) int {
+	dirs := discover(ws)
+	sem := make(chan struct{}, 4)
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	fails := 0
+	for _, d := range dirs {
+		wg.Add(1)
+		go func(dir string) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			if err := syncOne(dir); err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				mu.Lock()
+				fails++
+				mu.Unlock()
+			}
+		}(d)
+	}
+	wg.Wait()
+	return fails
 }
 
 func clone(rawRepo, workspace string) error {
