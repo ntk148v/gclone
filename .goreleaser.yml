@@ -30,7 +30,7 @@ builds:
 
     hooks:
       post:
-        - cmd: sh -c 'if [ "{{ .Os }}" != "darwin" ]; then upx --best --lzma "{{ .Path }}"; fi'
+        - cmd: sh -c 'if [ "{{ .Os }}" != "darwin" ] && { [ "{{ .Os }}" != "windows" ] || [ "{{ .Arch }}" != "arm64" ]; }; then upx --best --lzma "{{ .Path }}"; fi'
           output: true
 
 archives:
